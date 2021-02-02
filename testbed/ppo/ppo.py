@@ -4,10 +4,10 @@ from typing import List
 
 from attr import attrs, attrib
 
-import  torch
+import torch
 from torch import Tensor
 
-from testbed.ppo.value_network import ValueNetwork
+from testbed.ppo.network import ValueNetwork, PolicyNetwork
 
 
 @attrs
@@ -35,12 +35,17 @@ class PPOAgent:
         self._reward_discount = reward_discount
 
         # DNN params
-        self._value_netwotk = ValueNetwork(
+        self._value_network = ValueNetwork(
             dim_observation=dim_observation,
             hidden_size1=20,
             hidden_size2=20
         )
-        self._param_policy = None
+        self._policy_network = PolicyNetwork(
+            dim_observation=dim_observation,
+            hidden_size1=20,
+            hidden_size2=20,
+            dim_action=dim_action
+        )
 
         # PPO params
         self._n_trajectory = n_trajectory
@@ -52,9 +57,9 @@ class PPOAgent:
         self._prev_action = None
 
     def step(self,
-             observation,
-             reward,
-             is_done):
+             observation: List,
+             reward: float,
+             is_done: bool):
         """
         Collect trajectory
         :param observation:
@@ -62,7 +67,7 @@ class PPOAgent:
         :param is_done:
         :return:
         """
-        action = None  # TODO: get action
+        action = self._policy_network.forward(Tensor([observation])).detach()[0]
         self._add_data_into_buffer(observation,
                                    reward,
                                    action,
@@ -108,4 +113,4 @@ class PPOAgent:
         pass
 
     def _evaluate_vf(self, observation: Tensor) -> Tensor:
-        return self._value_netwotk.forward(observation)
+        return self._value_network.forward(observation)

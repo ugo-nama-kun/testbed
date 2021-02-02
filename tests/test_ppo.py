@@ -1,3 +1,4 @@
+import torch
 from pytest import approx
 
 from torch import Tensor
@@ -75,3 +76,18 @@ def test_get_advantage():
             assert approx((9 + value_t - t).tolist(), reward_to_go[n, t].tolist())
             obs = Tensor(expr.observation)
             assert approx((9 - t + value_t - agent._evaluate_vf(obs)).tolist(), advantage[n, t].tolist())
+
+
+def test_step():
+    agent = PPOAgent(reward_discount=1.0,
+                     n_trajectory=3,
+                     max_time_steps=10,
+                     dim_observation=2)
+
+    action = agent.step(
+        observation=[5.2, 3.1],
+        reward=1,
+        is_done=False
+    )
+
+    assert action.size()[0] == 2
