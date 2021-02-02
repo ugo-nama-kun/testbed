@@ -114,7 +114,8 @@ def test_vf_update():
                 is_done=is_done,
             )
 
-    agent._update_vf()
+    advantage, reward_to_go = agent._get_advantage()
+    agent._update_vf(reward_to_go)
 
     for i in range(3):
         for t in range(10):

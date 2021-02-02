@@ -82,6 +82,11 @@ class PPOAgent:
         self._trajectory = deque()
         self._data_buffer = deque(maxlen=n_trajectory)
         self._prev_action = None
+        self._num_iteration = 0
+
+    @property
+    def num_iteration(self):
+        return self._num_iteration
 
     def step(self,
              observation: List,
@@ -102,16 +107,20 @@ class PPOAgent:
                                    action,
                                    is_done)
         if len(self._data_buffer) == self._n_trajectory and not is_test:
-            # model update process
             self._model_update()
+            self._num_iteration += 1
         return action
 
     def _model_update(self):
+        """
+        Update process of Value network and Policy network
+        :return:
+        """
         advantage, reward_to_go = self._get_advantage()
         # policy update
         self._policy_update(advantage)
         # value update
-        self._update_vf()
+        self._update_vf(reward_to_go)
 
     def _policy_update(self, advantage):
         for epoch in range(self._iteration_op_policy):
@@ -156,6 +165,7 @@ class PPOAgent:
             self._trajectory = deque()
 
     def _get_advantage(self) -> (Tensor, Tensor):
+        # TODO: update to efficient tensor computation
         reward_to_go = torch.zeros((self._n_trajectory, self._max_time_steps))
         advantage = torch.zeros_like(reward_to_go)
         for n, traj in enumerate(self._data_buffer):
@@ -183,32 +193,17 @@ class PPOAgent:
 
         return advantage, reward_to_go
 
-    def _update_vf(self):
+    def _update_vf(self, reward_to_go: Tensor):
         # TODO: update to efficient tensor computation
-        # TODO: summarize with advantage calculation
         for epoch in range(self._iteration_op_value):
             sum_error = torch.zeros(1)
             len_data = 0.
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
-                # for bootstrap
-                #obs_final = Tensor(traj[-1].observation)
-                #value_final = self._evaluate_vf(obs_final).detach()
                 for t, _ in enumerate(traj):
-                    sum_rew = 0.
-                    discount = 1.0
-                    for experience in list(traj)[(t + 1):]:
-                        # TODO: apply Generalized advantage estimation (GAE)
-                        sum_rew += discount * experience.reward
-                        discount *= self._reward_discount
-
-                    # bootstrap
-                    #sum_rew += discount * value_final
-
-                    # error
                     obs_t = Tensor(traj[t].observation)
                     value_t = self._evaluate_vf(obs_t)
-                    sum_error += (sum_rew - value_t) ** 2  # td error minimization?
+                    sum_error += (reward_to_go[n, t] - value_t) ** 2
 
             sum_error /= len_data
             # print(f"VF minimization {epoch + 1}/{self._iteration_op_value}: {sum_error.detach().numpy()}")
