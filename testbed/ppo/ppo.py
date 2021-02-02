@@ -1,4 +1,3 @@
-
 from collections import deque
 from typing import List
 
@@ -121,7 +120,6 @@ class PPOAgent:
     def update_policy(self):
         advantage, reward_to_go = self._get_advantage()
 
-
     def _get_advantage(self) -> (Tensor, Tensor):
         reward_to_go = torch.zeros((self._n_trajectory, self._max_time_steps))
         advantage = torch.zeros_like(reward_to_go)
@@ -132,7 +130,7 @@ class PPOAgent:
             for t, _ in enumerate(traj):
                 sum_rew = 0
                 discount = 1.0
-                for experience in list(traj)[(t+1):]:
+                for experience in list(traj)[(t + 1):]:
                     # TODO: apply Generalized advantage estimation (GAE)
                     sum_rew += discount * experience.reward
                     discount *= self._reward_discount
@@ -164,7 +162,7 @@ class PPOAgent:
                 for t, _ in enumerate(traj):
                     sum_rew = 0.
                     discount = 1.0
-                    for experience in list(traj)[(t+1):]:
+                    for experience in list(traj)[(t + 1):]:
                         # TODO: apply Generalized advantage estimation (GAE)
                         sum_rew += discount * experience.reward
                         discount *= self._reward_discount
@@ -175,7 +173,7 @@ class PPOAgent:
                     # error
                     obs_t = Tensor(traj[t].observation)
                     value_t = self._evaluate_vf(obs_t)
-                    sum_error += (sum_rew - value_t)**2  # td error minimization?
+                    sum_error += (sum_rew - value_t) ** 2  # td error minimization?
 
             sum_error /= len_data
             # print(f"VF minimization {epoch + 1}/{self._iteration_op_value}: {sum_error.detach().numpy()}")

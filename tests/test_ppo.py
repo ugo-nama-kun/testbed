@@ -1,6 +1,3 @@
-from collections import deque
-
-import torch
 from pytest import approx
 
 from torch import Tensor
@@ -12,14 +9,14 @@ def test_add_sample_into_trajectory():
     agent = PPOAgent(reward_discount=1.0, n_trajectory=3, max_time_steps=100)
     assert len(agent._data_buffer) == 0
 
-    agent._add_data_into_buffer(observation=0,
+    agent._add_data_into_buffer(observation=[0],
                                 reward=1,
-                                action=2,
+                                action=[2],
                                 is_done=False)
     assert len(agent._trajectory) == 1
-    assert agent._trajectory[0].observation == 0
+    assert agent._trajectory[0].observation == [0]
     assert agent._trajectory[0].reward == 1
-    assert agent._trajectory[0].action == 2
+    assert agent._trajectory[0].action == [2]
     assert agent._trajectory[0].is_done is False
 
 
@@ -27,10 +24,10 @@ def test_save_multiple_trajectories():
     agent = PPOAgent(reward_discount=1.0, n_trajectory=3, max_time_steps=10)
     assert len(agent._data_buffer) == 0
 
-    for i in range(3*10):
-        agent._add_data_into_buffer(observation=0,
+    for i in range(3 * 10):
+        agent._add_data_into_buffer(observation=[0],
                                     reward=0,
-                                    action=0,
+                                    action=[0],
                                     is_done=False)
     assert len(agent._data_buffer) == 3
     assert len(agent._data_buffer[0]) == 10
@@ -41,11 +38,11 @@ def test_save_multiple_trajectories_with_done():
     assert len(agent._data_buffer) == 0
 
     for i in range(3):
-        for j in range(3 * (i+1)):
-            is_done = j == 3*(i+1) - 1
-            agent._add_data_into_buffer(observation=0,
+        for j in range(3 * (i + 1)):
+            is_done = j == 3 * (i + 1) - 1
+            agent._add_data_into_buffer(observation=[0],
                                         reward=0,
-                                        action=0,
+                                        action=[0],
                                         is_done=is_done)
         assert len(agent._data_buffer) == i + 1
 
@@ -64,7 +61,7 @@ def test_get_advantage():
             obs = [0, 0]
             agent._add_data_into_buffer(observation=obs,
                                         reward=1,
-                                        action=0,
+                                        action=[0],
                                         is_done=False)
 
     advantage, reward_to_go = agent._get_advantage()
@@ -112,7 +109,7 @@ def test_vf_update():
             r = 1 if t == 9 else 0
             is_done = True if t == 9 else False
             agent.step(
-                observation=[t/9., 1-(t/9.)],
+                observation=[t / 9., 1 - (t / 9.)],
                 reward=r,
                 is_done=is_done,
             )
@@ -122,10 +119,9 @@ def test_vf_update():
     for i in range(3):
         for t in range(10):
             val = agent._evaluate_vf(
-                observation=Tensor([t/9., 1-(t/9.)])
+                observation=Tensor([t / 9., 1 - (t / 9.)])
             )
             if t == 9:
                 assert approx(0, val, abs=0.1)
             else:
                 assert approx(1, val, abs=0.1)
-
