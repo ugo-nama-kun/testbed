@@ -84,24 +84,26 @@ def test_agent_step():
     agent = PPOAgent(reward_discount=1.0,
                      n_trajectory=3,
                      max_time_steps=10,
-                     dim_observation=2)
+                     dim_observation=2,
+                     dim_action=2)
 
     action = agent.step(
         observation=[5.2, 3.1],
         reward=1,
         is_done=False
     )
-
+    print(action)
     assert action.size()[0] == 2
 
 
 def test_vf_update():
-    agent = PPOAgent(reward_discount=1.0,
+    agent = PPOAgent(reward_discount=0.0,
                      n_trajectory=3,
                      max_time_steps=10,
                      dim_observation=2,
                      lr_value=0.1,
-                     iter_op_vf=50)
+                     iter_op_vf=50,
+                     )
 
     # Data for value estimation
     # Value of all sequence should be one.

@@ -29,6 +29,7 @@ class PPOAgent:
                  lr_value=0.001,
                  iter_op_vf=20,
                  lr_policy=0.001,
+                 eps_policy_clip=0.2
                  ):
         """
 
@@ -74,6 +75,7 @@ class PPOAgent:
         self._n_trajectory = n_trajectory
         self._max_time_steps = max_time_steps
         self._iteration_op_value = iter_op_vf
+        self._eps_policy_clip = eps_policy_clip
 
         # Internal state of the system
         self._trajectory = deque()
@@ -91,7 +93,7 @@ class PPOAgent:
         :param is_done:
         :return:
         """
-        action = self._policy_network.forward(Tensor([observation])).detach()[0]
+        action = self._policy_network.sample(Tensor(observation)).detach()
         self._add_data_into_buffer(observation,
                                    reward,
                                    action,
@@ -119,13 +121,14 @@ class PPOAgent:
     def update_policy(self):
         advantage, reward_to_go = self._get_advantage()
 
+
     def _get_advantage(self) -> (Tensor, Tensor):
         reward_to_go = torch.zeros((self._n_trajectory, self._max_time_steps))
         advantage = torch.zeros_like(reward_to_go)
         for n, traj in enumerate(self._data_buffer):
             # bootstrap
-            #obs_final = Tensor(traj[-1].observation)
-            #value_final = self._evaluate_vf(obs_final).detach()
+            obs_final = Tensor(traj[-1].observation)
+            value_final = self._evaluate_vf(obs_final).detach()
             for t, _ in enumerate(traj):
                 sum_rew = 0
                 discount = 1.0
@@ -135,7 +138,7 @@ class PPOAgent:
                     discount *= self._reward_discount
 
                 # bootstrap
-                #sum_rew += discount * value_final
+                sum_rew += discount * value_final
 
                 # reward to go
                 reward_to_go[n, t] = sum_rew
@@ -156,8 +159,8 @@ class PPOAgent:
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
                 # for bootstrap
-                #obs_final = Tensor(traj[-1].observation)
-                #value_final = self._evaluate_vf(obs_final).detach()
+                obs_final = Tensor(traj[-1].observation)
+                value_final = self._evaluate_vf(obs_final).detach()
                 for t, _ in enumerate(traj):
                     sum_rew = 0.
                     discount = 1.0
@@ -167,14 +170,13 @@ class PPOAgent:
                         discount *= self._reward_discount
 
                     # bootstrap
-                    #sum_rew += discount * value_final
+                    sum_rew += discount * value_final
 
                     # error
                     obs_t = Tensor(traj[t].observation)
                     value_t = self._evaluate_vf(obs_t)
                     sum_error += (sum_rew - value_t)**2  # td error minimization?
 
-            # TODO: add gradient update
             sum_error /= len_data
             # print(f"VF minimization {epoch + 1}/{self._iteration_op_value}: {sum_error.detach().numpy()}")
             self._optimizer_vf.zero_grad()
