@@ -27,6 +27,7 @@ class PPOAgent:
                  dim_action=2,
                  lr_value=0.001,
                  iter_op_vf=20,
+                 iter_op_policy=10,
                  lr_policy=0.001,
                  eps_policy_clip=0.2
                  ):
@@ -74,6 +75,7 @@ class PPOAgent:
         self._n_trajectory = n_trajectory
         self._max_time_steps = max_time_steps
         self._iteration_op_value = iter_op_vf
+        self._iteration_op_policy = iter_op_policy
         self._eps_policy_clip = eps_policy_clip
 
         # Internal state of the system
@@ -84,9 +86,11 @@ class PPOAgent:
     def step(self,
              observation: List,
              reward: float,
-             is_done: bool):
+             is_done: bool,
+             is_test=False):
         """
         Collect trajectory
+        :param is_test:
         :param observation:
         :param reward:
         :param is_done:
@@ -97,7 +101,41 @@ class PPOAgent:
                                    reward,
                                    action,
                                    is_done)
+        if len(self._data_buffer) == self._n_trajectory and not is_test:
+            # model update process
+            self._model_update()
         return action
+
+    def _model_update(self):
+        advantage, reward_to_go = self._get_advantage()
+        # policy update
+        self._policy_update(advantage)
+        # value update
+        self._update_vf()
+
+    def _policy_update(self, advantage):
+        for epoch in range(self._iteration_op_policy):
+            loss = torch.zeros(1)
+            len_data = 0
+            for n, traj in enumerate(self._data_buffer):
+                len_data += len(traj)
+                for t, _ in enumerate(traj):
+                    for experience in list(traj)[(t + 1):]:
+                        log_p = self._policy_network.log_prob(Tensor(experience.observation), Tensor(experience.action))
+                        log_p_old = self._policy_old.log_prob(Tensor(experience.observation), Tensor(experience.action))
+                        ratio = torch.exp(log_p - log_p_old)
+                        tmp = torch.minimum(
+                            ratio,
+                            torch.clip(ratio, max=1 + self._eps_policy_clip, min=1 - self._eps_policy_clip)
+                        )
+                        loss += tmp * advantage[n, t]
+            loss /= len_data
+            self._optimizer_policy.zero_grad()
+            loss.backward()
+            self._optimizer_policy.step()
+
+        # copy old policy
+        self._policy_old.load_state_dict(self._policy_network.state_dict())
 
     def _add_data_into_buffer(self,
                               observation: List,
@@ -116,9 +154,6 @@ class PPOAgent:
         if len(self._trajectory) == self._max_time_steps or is_done:
             self._data_buffer.append(self._trajectory)
             self._trajectory = deque()
-
-    def update_policy(self):
-        advantage, reward_to_go = self._get_advantage()
 
     def _get_advantage(self) -> (Tensor, Tensor):
         reward_to_go = torch.zeros((self._n_trajectory, self._max_time_steps))
@@ -157,8 +192,8 @@ class PPOAgent:
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
                 # for bootstrap
-                obs_final = Tensor(traj[-1].observation)
-                value_final = self._evaluate_vf(obs_final).detach()
+                #obs_final = Tensor(traj[-1].observation)
+                #value_final = self._evaluate_vf(obs_final).detach()
                 for t, _ in enumerate(traj):
                     sum_rew = 0.
                     discount = 1.0
@@ -168,7 +203,7 @@ class PPOAgent:
                         discount *= self._reward_discount
 
                     # bootstrap
-                    sum_rew += discount * value_final
+                    #sum_rew += discount * value_final
 
                     # error
                     obs_t = Tensor(traj[t].observation)

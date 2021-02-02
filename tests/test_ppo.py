@@ -94,7 +94,7 @@ def test_agent_step():
 
 
 def test_vf_update():
-    agent = PPOAgent(reward_discount=0.0,
+    agent = PPOAgent(reward_discount=1.0,
                      n_trajectory=3,
                      max_time_steps=10,
                      dim_observation=2,
@@ -125,3 +125,32 @@ def test_vf_update():
                 assert approx(0, val, abs=0.1)
             else:
                 assert approx(1, val, abs=0.1)
+
+
+def test_policy_update():
+    agent = PPOAgent(reward_discount=0.0,
+                     n_trajectory=3,
+                     max_time_steps=10,
+                     dim_observation=2,
+                     lr_value=0.1,
+                     iter_op_vf=3,
+                     lr_policy=0.1,
+                     iter_op_policy=3,
+                     )
+
+    # Data for value estimation
+    # Value of all sequence should be one.
+    for i in range(3):
+        for t in range(10):
+            r = 1 if t == 9 else 0
+            is_done = True if t == 9 else False
+            agent.step(
+                observation=[t / 9., 1 - (t / 9.)],
+                reward=r,
+                is_done=is_done,
+                is_test=True,
+            )
+
+    # just a running check
+    advantage, reward_to_go = agent._get_advantage()
+    agent._policy_update(advantage)

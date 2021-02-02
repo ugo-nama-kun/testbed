@@ -61,8 +61,8 @@ class PolicyNetwork(torch.nn.Module):
         # TODO: use shared feature extraction with VF
         x = F.leaky_relu(self._fc1(observation))
         x = F.leaky_relu(self._fc2(x))
-        mean_action = F.tanh(self._fc3_mean(x))
-        var_action = F.sigmoid(self._fc3_var(x))  # TODO: need help!
+        mean_action = torch.tanh(self._fc3_mean(x))
+        var_action = torch.sigmoid(self._fc3_var(x))  # TODO: need help!
         return mean_action, var_action
 
     def log_prob(self, observation: Tensor, action: Tensor) -> Tensor:
