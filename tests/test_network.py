@@ -32,6 +32,5 @@ def test_sample_from_policy():
         hidden_size2=10,
         dim_action=2
     )
-    action = pol.sample(torch.zeros(3))
-    print(f"sample: {action}")
+    action = pol.sample(torch.zeros(1, 3))
     assert action.size()[0] == 2

@@ -46,7 +46,10 @@ class PolicyNetwork(torch.nn.Module):
                                     out_features=hidden_size2)
         self._fc3_mean = torch.nn.Linear(in_features=hidden_size2,
                                          out_features=self._dim_action)
-        self._log_var = torch.randn(self._dim_action, requires_grad=True)
+        self._log_var = torch.nn.Linear(in_features=1,  # use constant input 1
+                                        out_features=self._dim_action,
+                                        bias=False)
+        self._log_var.weight.data.fill_(1.0)
 
     @property
     def dim_observation(self) -> int:
@@ -61,7 +64,8 @@ class PolicyNetwork(torch.nn.Module):
         x = F.leaky_relu(self._fc1(observation))
         x = F.leaky_relu(self._fc2(x))
         mean_action = torch.tanh(self._fc3_mean(x))
-        var_action = torch.exp(self._log_var).resize_as(mean_action)
+        # var_action = 0.1 * torch.ones(1, self._dim_action)   # constant variance
+        var_action = torch.exp(self._log_var(torch.ones(observation.size()[0], 1)))
         return mean_action, var_action
 
     def log_prob(self, observation: Tensor, action: Tensor) -> Tensor:
@@ -73,7 +77,7 @@ class PolicyNetwork(torch.nn.Module):
         :return:
         """
         mean, var = self.forward(observation)
-        p = torch.distributions.MultivariateNormal(loc=mean, covariance_matrix=torch.diag(var))
+        p = torch.distributions.MultivariateNormal(loc=mean, covariance_matrix=torch.diag(var[0]))
         return p.log_prob(action)
 
     def sample(self, observation: Tensor) -> Tensor:
@@ -84,6 +88,6 @@ class PolicyNetwork(torch.nn.Module):
         :return:
         """
         mean, var = self.forward(observation)
-        p = torch.distributions.MultivariateNormal(loc=mean, covariance_matrix=torch.diag(var))
-        s = p.sample()
-        return s
+        p = torch.distributions.MultivariateNormal(loc=mean, covariance_matrix=torch.diag(var[0]))
+        action = p.sample()
+        return action[0].detach()

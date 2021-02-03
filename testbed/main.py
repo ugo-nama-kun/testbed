@@ -7,6 +7,7 @@ from testbed.ppo.ppo import PPOAgent
 vis = visdom.Visdom()
 
 env = gym.make('Pendulum-v0')
+# env = gym.make("MountainCarContinuous-v0")
 
 
 def obs_scale(observation):
@@ -18,15 +19,15 @@ print(f"dim_obs: {len(env.observation_space.high)}")
 print(f"dim_action: {len(env.action_space.high)}")
 
 agent = PPOAgent(
-    reward_discount=0.9,
+    reward_discount=0.95,
     n_trajectory=10,
-    max_time_steps=20,
+    max_time_steps=100,
     dim_observation=len(env.observation_space.high),
     dim_action=len(env.action_space.high),
-    lr_value=0.01,
+    lr_value=0.001,
     iter_op_vf=3,
-    iter_op_policy=1,
-    lr_policy=0.01,
+    iter_op_policy=3,
+    lr_policy=0.001,
     eps_policy_clip=0.2)
 
 if __name__ == '__main__':
@@ -34,15 +35,17 @@ if __name__ == '__main__':
     rew_sum_list = []
     while True:
         t = 0
+        reward = None
         done = False
         observation = env.reset()
         rew_sum = 0
         while True:
-            env.render()
+            if episode % 10 == 0:
+                env.render()
             obs = obs_scale(observation)
             action = agent.step(
                 observation=obs,
-                reward=0,
+                reward=reward,
                 is_done=done
             )
 
@@ -50,7 +53,7 @@ if __name__ == '__main__':
             observation, reward, done, info = env.step(u)
             rew_sum += reward
             if done:
-                print(f"Episode finished after {t + 1} timesteps: Reward sum : {rew_sum}")
+                print(f"Episode {episode+1} finished after {t + 1} timesteps: Reward sum : {rew_sum}")
                 episode += 1
                 rew_sum_list.append(rew_sum)
                 vis.line(X=np.array(range(episode)),

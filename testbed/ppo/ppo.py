@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from attr import attrs, attrib
@@ -67,10 +67,12 @@ class PPOAgent:
         self._optimizer_vf = optim.Adam(
             params=self._value_network.parameters(),
             lr=lr_value,
+            weight_decay=1.0e-5
         )
         self._optimizer_policy = optim.Adam(
             params=self._policy_network.parameters(),
             lr=lr_policy,
+            weight_decay=1.0e-5
         )
 
         # PPO params
@@ -85,6 +87,7 @@ class PPOAgent:
         self._trajectory = deque()
         self._data_buffer = deque(maxlen=n_trajectory)
         self._prev_action = None
+        self._prev_obs = None
         self._num_iteration = 0
 
     @property
@@ -93,7 +96,7 @@ class PPOAgent:
 
     def step(self,
              observation: List,
-             reward: float,
+             reward: Optional[float],
              is_done: bool,
              is_test=False):
         """
@@ -105,16 +108,21 @@ class PPOAgent:
         :return:
         """
         # Normalizer update
-        self._rms_reward.update(np.array([reward]))
+        if reward:
+            self._rms_reward.update(np.array([reward]))
 
         # Taking Action
-        action = self._policy_network.sample(Tensor(observation)).detach()
+        action = self._policy_network.sample(Tensor([observation])).detach()
 
         # Store data into buffer
-        self._add_data_into_buffer(observation,
-                                   reward,
-                                   action,
-                                   is_done)
+        if reward is not None:
+            self._add_data_into_buffer(self._prev_obs,
+                                       self._prev_action,
+                                       reward,
+                                       is_done)
+        self._prev_obs = observation
+        self._prev_action = action
+
         if len(self._data_buffer) == self._n_trajectory and not is_test:
             print(f"{self._num_iteration+1}-th Iteration...")
             self._model_update()
@@ -141,17 +149,20 @@ class PPOAgent:
             len_data = 0
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
-                for t, _ in enumerate(traj):
-                    for experience in list(traj)[(t + 1):]:
-                        log_p = self._policy_network.log_prob(Tensor(experience.observation), Tensor(experience.action))
-                        log_p_old = self._policy_old.log_prob(Tensor(experience.observation), Tensor(experience.action))
-                        ratio = torch.exp(log_p - log_p_old)
-                        tmp = torch.minimum(
-                            ratio,
-                            torch.clip(ratio, max=1 + self._eps_policy_clip, min=1 - self._eps_policy_clip)
-                        )
-                        loss += - tmp * advantage[n, t]
+                # per-batch normalization
+                # advantage_ = (advantage[n,:] - torch.mean(advantage[n,:])) / torch.std(advantage[n,:])
+                advantage_ = advantage[n,:]
+                for t, experience in enumerate(traj):
+                    log_p = self._policy_network.log_prob(Tensor(experience.observation), Tensor(experience.action))
+                    log_p_old = self._policy_old.log_prob(Tensor(experience.observation), Tensor(experience.action)).detach()
+                    ratio = torch.exp(log_p - log_p_old)
+                    tmp = torch.minimum(
+                        ratio,
+                        torch.clip(ratio, max=1 + self._eps_policy_clip, min=1 - self._eps_policy_clip)
+                    )
+                    loss += - tmp * advantage_[t]
             loss /= len_data
+            print(f"policy loss {epoch + 1}/{self._iteration_op_policy}: {len_data * loss.detach()}")
             self._optimizer_policy.zero_grad()
             loss.backward()
             self._optimizer_policy.step()
@@ -161,8 +172,8 @@ class PPOAgent:
 
     def _add_data_into_buffer(self,
                               observation: List,
-                              reward: float,
                               action: List,
+                              reward: float,
                               is_done: bool):
         """
         Trajectory Experience Buffer. The length of trajectories are shorter than than max_time_steps
@@ -194,7 +205,7 @@ class PPOAgent:
                     discount *= self._reward_discount
 
                 # bootstrap
-                sum_rew += discount * value_final
+                sum_rew += discount * value_final * (1. - traj[-1].is_done)
 
                 # reward to go
                 reward_to_go[n, t] = sum_rew
@@ -209,19 +220,20 @@ class PPOAgent:
     def _update_vf(self, reward_to_go: Tensor):
         # TODO: update to efficient tensor computation
         for epoch in range(self._iteration_op_value):
-            sum_error = torch.zeros(1)
+            loss = torch.zeros(1)
             len_data = 0.
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
                 for t, _ in enumerate(traj):
                     obs_t = Tensor(traj[t].observation)
                     value_t = self._evaluate_vf(obs_t)
-                    sum_error += (reward_to_go[n, t] - value_t) ** 2
+                    loss += (reward_to_go[n, t] - value_t) ** 2
 
-            sum_error /= len_data
+            loss /= len_data
+            print(f"value loss {epoch + 1}/{self._iteration_op_value}: {loss.detach()}")
             # print(f"VF minimization {epoch + 1}/{self._iteration_op_value}: {sum_error.detach().numpy()}")
             self._optimizer_vf.zero_grad()
-            sum_error.backward()
+            loss.backward()
             self._optimizer_vf.step()
 
     def _evaluate_vf(self, observation: Tensor) -> Tensor:
