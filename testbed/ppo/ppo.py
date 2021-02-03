@@ -1,6 +1,7 @@
 from collections import deque
 from typing import List
 
+import numpy as np
 from attr import attrs, attrib
 
 import torch
@@ -8,6 +9,7 @@ from torch import Tensor
 import torch.optim as optim
 
 from testbed.ppo.network import ValueNetwork, PolicyNetwork
+from testbed.ppo.util import RunningMeanStd
 
 
 @attrs
@@ -42,20 +44,20 @@ class PPOAgent:
         # DNN params
         self._value_network = ValueNetwork(
             dim_observation=dim_observation,
-            hidden_size1=20,
-            hidden_size2=20
+            hidden_size1=64,
+            hidden_size2=32
         )
 
         self._policy_network = PolicyNetwork(
             dim_observation=dim_observation,
-            hidden_size1=20,
-            hidden_size2=20,
+            hidden_size1=64,
+            hidden_size2=32,
             dim_action=dim_action
         )
         self._policy_old = PolicyNetwork(
             dim_observation=dim_observation,
-            hidden_size1=20,
-            hidden_size2=20,
+            hidden_size1=64,
+            hidden_size2=32,
             dim_action=dim_action
         )
         # copy policy into the old-policy network
@@ -79,6 +81,7 @@ class PPOAgent:
         self._eps_policy_clip = eps_policy_clip
 
         # Internal state of the system
+        self._rms_reward = RunningMeanStd()
         self._trajectory = deque()
         self._data_buffer = deque(maxlen=n_trajectory)
         self._prev_action = None
@@ -101,14 +104,22 @@ class PPOAgent:
         :param is_done:
         :return:
         """
+        # Normalizer update
+        self._rms_reward.update(np.array([reward]))
+
+        # Taking Action
         action = self._policy_network.sample(Tensor(observation)).detach()
+
+        # Store data into buffer
         self._add_data_into_buffer(observation,
                                    reward,
                                    action,
                                    is_done)
         if len(self._data_buffer) == self._n_trajectory and not is_test:
+            print(f"{self._num_iteration+1}-th Iteration...")
             self._model_update()
             self._num_iteration += 1
+            print("done!")
         return action
 
     def _model_update(self):
@@ -121,6 +132,8 @@ class PPOAgent:
         self._policy_update(advantage)
         # value update
         self._update_vf(reward_to_go)
+        # clear previous trajectory
+        self._data_buffer.clear()
 
     def _policy_update(self, advantage):
         for epoch in range(self._iteration_op_policy):
@@ -137,7 +150,7 @@ class PPOAgent:
                             ratio,
                             torch.clip(ratio, max=1 + self._eps_policy_clip, min=1 - self._eps_policy_clip)
                         )
-                        loss += tmp * advantage[n, t]
+                        loss += - tmp * advantage[n, t]
             loss /= len_data
             self._optimizer_policy.zero_grad()
             loss.backward()
@@ -177,7 +190,7 @@ class PPOAgent:
                 discount = 1.0
                 for experience in list(traj)[(t + 1):]:
                     # TODO: apply Generalized advantage estimation (GAE)
-                    sum_rew += discount * experience.reward
+                    sum_rew += discount * self._normalize_reward(experience.reward)
                     discount *= self._reward_discount
 
                 # bootstrap
@@ -191,7 +204,7 @@ class PPOAgent:
                 value_t = self._evaluate_vf(obs_t).detach()
                 advantage[n, t] = reward_to_go[n, t] - value_t
 
-        return advantage, reward_to_go
+        return advantage, reward_to_go.detach()
 
     def _update_vf(self, reward_to_go: Tensor):
         # TODO: update to efficient tensor computation
@@ -213,3 +226,6 @@ class PPOAgent:
 
     def _evaluate_vf(self, observation: Tensor) -> Tensor:
         return self._value_network.forward(observation)
+
+    def _normalize_reward(self, reward: float):
+        return reward / np.sqrt(self._rms_reward.var)

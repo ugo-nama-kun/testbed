@@ -46,8 +46,7 @@ class PolicyNetwork(torch.nn.Module):
                                     out_features=hidden_size2)
         self._fc3_mean = torch.nn.Linear(in_features=hidden_size2,
                                          out_features=self._dim_action)
-        self._fc3_var = torch.nn.Linear(in_features=hidden_size2,
-                                        out_features=self._dim_action)
+        self._log_var = torch.randn(self._dim_action, requires_grad=True)
 
     @property
     def dim_observation(self) -> int:
@@ -62,7 +61,7 @@ class PolicyNetwork(torch.nn.Module):
         x = F.leaky_relu(self._fc1(observation))
         x = F.leaky_relu(self._fc2(x))
         mean_action = torch.tanh(self._fc3_mean(x))
-        var_action = torch.sigmoid(self._fc3_var(x))  # TODO: need help!
+        var_action = torch.exp(self._log_var).resize_as(mean_action)
         return mean_action, var_action
 
     def log_prob(self, observation: Tensor, action: Tensor) -> Tensor:

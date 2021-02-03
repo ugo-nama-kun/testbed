@@ -1,3 +1,4 @@
+import numpy as np
 from pytest import approx
 
 from torch import Tensor
@@ -94,38 +95,40 @@ def test_agent_step():
 
 
 def test_vf_update():
+    len_traj = 5
     agent = PPOAgent(reward_discount=1.0,
                      n_trajectory=3,
-                     max_time_steps=10,
+                     max_time_steps=len_traj,
                      dim_observation=2,
-                     lr_value=0.1,
-                     iter_op_vf=50,
+                     lr_value=0.05,
+                     iter_op_vf=100,
                      )
 
     # Data for value estimation
     # Value of all sequence should be one.
     for i in range(3):
-        for t in range(10):
-            r = 1 if t == 9 else 0
-            is_done = True if t == 9 else False
-            agent.step(
-                observation=[t / 9., 1 - (t / 9.)],
-                reward=r,
-                is_done=is_done,
-            )
+        for t in range(len_traj):
+            r = 1 if t == len_traj - 1 else 0
+            is_done = True if t == len_traj - 1 else False
+            agent._add_data_into_buffer(observation=[t/float(len_traj), 1 - t/float(len_traj)],
+                                        reward=r,
+                                        action=[0, 0],
+                                        is_done=is_done)
 
     advantage, reward_to_go = agent._get_advantage()
+    # print(reward_to_go)
     agent._update_vf(reward_to_go)
 
     for i in range(3):
-        for t in range(10):
+        for t in range(len_traj):
             val = agent._evaluate_vf(
-                observation=Tensor([t / 9., 1 - (t / 9.)])
-            )
-            if t == 9:
-                assert approx(0, val, abs=0.1)
+                observation=Tensor([t/float(len_traj), 1. - t/float(len_traj)])
+            ).detach()
+            print(val.numpy())
+            if t == len_traj - 1:
+                assert 0 == approx(val, abs=0.2)
             else:
-                assert approx(1, val, abs=0.1)
+                assert 1 == approx(val, abs=0.2)
 
 
 def test_policy_update():
@@ -155,3 +158,21 @@ def test_policy_update():
     # just a running check
     advantage, reward_to_go = agent._get_advantage()
     agent._policy_update(advantage)
+
+
+def test_reward_normalizer():
+    agent = PPOAgent(reward_discount=0.9,
+                     n_trajectory=3,
+                     max_time_steps=10,
+                     dim_observation=2)
+
+    data = [np.random.randn(1) for i in range(5)]
+    for x in data:
+        agent.step(
+            observation=[0, 1],
+            reward=x,
+            is_done=False,
+            is_test=True,
+        )
+
+    assert 10. / np.std(data) == approx(agent._normalize_reward(10.), abs=0.01)
