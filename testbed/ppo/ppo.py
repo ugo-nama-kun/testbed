@@ -205,7 +205,10 @@ class PPOAgent:
                     discount *= self._reward_discount
 
                 # bootstrap
-                sum_rew += discount * value_final * (1. - traj[-1].is_done)
+                if not traj[-1].is_done:
+                    sum_rew += discount * value_final
+                else:
+                    print("is_done == True!")
 
                 # reward to go
                 reward_to_go[n, t] = sum_rew
