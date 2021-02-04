@@ -67,12 +67,12 @@ class PPOAgent:
         self._optimizer_vf = optim.Adam(
             params=self._value_network.parameters(),
             lr=lr_value,
-            weight_decay=1.0e-5
+            weight_decay=1.0e-6
         )
         self._optimizer_policy = optim.Adam(
             params=self._policy_network.parameters(),
             lr=lr_policy,
-            weight_decay=1.0e-5
+            weight_decay=1.0e-6
         )
 
         # PPO params
