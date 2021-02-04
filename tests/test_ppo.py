@@ -90,7 +90,6 @@ def test_agent_step():
         reward=1,
         is_done=False
     )
-    print(action)
     assert action.size()[0] == 2
 
 
@@ -124,7 +123,6 @@ def test_vf_update():
             val = agent._evaluate_vf(
                 observation=Tensor([t/float(len_traj), 1. - t/float(len_traj)])
             ).detach()
-            print(val.numpy())
             if t == len_traj - 1:
                 assert 0 == approx(val, abs=0.2)
             else:

@@ -116,8 +116,8 @@ class PPOAgent:
 
         # Store data into buffer
         if reward is not None:
-            self._add_data_into_buffer(self._prev_obs,
-                                       self._prev_action,
+            self._add_data_into_buffer(self._prev_obs if self._prev_obs is not None else observation,
+                                       self._prev_action if self._prev_action is not None else action,
                                        reward,
                                        is_done)
         self._prev_obs = observation
@@ -150,8 +150,7 @@ class PPOAgent:
             for n, traj in enumerate(self._data_buffer):
                 len_data += len(traj)
                 # per-batch normalization
-                # advantage_ = (advantage[n,:] - torch.mean(advantage[n,:])) / torch.std(advantage[n,:])
-                advantage_ = advantage[n,:]
+                advantage_ = (advantage[n,:] - torch.mean(advantage[n,:])) / torch.std(advantage[n,:])
                 for t, experience in enumerate(traj):
                     log_p = self._policy_network.log_prob(Tensor(experience.observation), Tensor(experience.action))
                     log_p_old = self._policy_old.log_prob(Tensor(experience.observation), Tensor(experience.action)).detach()
@@ -208,12 +207,14 @@ class PPOAgent:
                 if not traj[-1].is_done:
                     sum_rew += discount * value_final
                 else:
-                    print("is_done == True!")
+                    pass
+                    #print("is_done == True!")
 
                 # reward to go
                 reward_to_go[n, t] = sum_rew
 
                 # advantage
+                # print(f"{len(traj)}, {t}, {n}")
                 obs_t = Tensor(traj[t].observation)
                 value_t = self._evaluate_vf(obs_t).detach()
                 advantage[n, t] = reward_to_go[n, t] - value_t
@@ -234,7 +235,6 @@ class PPOAgent:
 
             loss /= len_data
             print(f"value loss {epoch + 1}/{self._iteration_op_value}: {loss.detach()}")
-            # print(f"VF minimization {epoch + 1}/{self._iteration_op_value}: {sum_error.detach().numpy()}")
             self._optimizer_vf.zero_grad()
             loss.backward()
             self._optimizer_vf.step()
