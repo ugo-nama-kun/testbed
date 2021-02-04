@@ -6,15 +6,10 @@ from testbed.ppo.ppo import PPOAgent
 
 vis = visdom.Visdom()
 
-# env_name = "BipedalWalker-v2"
+# env_name = "BipedalWalker-v3"
 env_name = 'Pendulum-v0'
 # env_name = "MountainCarContinuous-v0"
 env = gym.make(env_name)
-
-
-def obs_scale(observation):
-    x = (observation - env.observation_space.low)/(env.observation_space.high - env.observation_space.low)
-    return 2. * x - 1.
 
 
 print(f"dim_obs: {len(env.observation_space.high)}")
@@ -54,9 +49,8 @@ if __name__ == '__main__':
                          name='reward_sum')
                 break
 
-            obs = obs_scale(observation)
             action = agent.step(
-                observation=obs,
+                observation=observation,
                 reward=reward,
                 is_done=done
             )

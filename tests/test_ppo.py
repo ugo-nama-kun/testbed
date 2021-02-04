@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from pytest import approx
 
 from torch import Tensor
@@ -174,3 +175,25 @@ def test_reward_normalizer():
         )
 
     assert 10. / np.std(data) == approx(agent._normalize_reward(10.), abs=0.01)
+
+
+def test_observation_normalizer():
+    agent = PPOAgent(reward_discount=0.9,
+                     n_trajectory=3,
+                     max_time_steps=10,
+                     dim_observation=2)
+
+    data = 1 + np.random.randn(1000, 2)
+    mean = np.mean(data, 0).astype(np.float32)
+    std = np.std(data, 0).astype(np.float32)
+    for x in data:
+        agent.step(
+            observation=x.tolist(),
+            reward=1,
+            is_done=False,
+            is_test=True,
+        )
+
+    obs = agent._normalize_observation(Tensor([0, 0])).float()
+    expected = (Tensor([0, 0]).float() - mean) / std
+    assert torch.allclose(obs, expected, rtol=0.2, atol=0.2)

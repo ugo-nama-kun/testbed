@@ -84,6 +84,7 @@ class PPOAgent:
 
         # Internal state of the system
         self._rms_reward = RunningMeanStd()
+        self._rms_observation = RunningMeanStd()
         self._trajectory = deque()
         self._data_buffer = deque(maxlen=n_trajectory)
         self._prev_action = None
@@ -108,6 +109,7 @@ class PPOAgent:
         :return:
         """
         # Normalizer update
+        self._rms_observation.update(np.array(observation))
         if reward:
             self._rms_reward.update(np.array([reward]))
 
@@ -176,9 +178,9 @@ class PPOAgent:
                               is_done: bool):
         """
         Trajectory Experience Buffer. The length of trajectories are shorter than than max_time_steps
-        :param observation:
-        :param reward:
-        :param action:
+        :param observation: RAW (non-scaled) observation is registered
+        :param reward: RAW (non-scaled) reward is registered
+        :param action: RAW (non-scaled from network output) action is registered
         :param is_done:
         :return:
         """
@@ -240,7 +242,10 @@ class PPOAgent:
             self._optimizer_vf.step()
 
     def _evaluate_vf(self, observation: Tensor) -> Tensor:
-        return self._value_network.forward(observation)
+        return self._value_network.forward(self._normalize_observation(observation))
 
     def _normalize_reward(self, reward: float):
         return reward / np.sqrt(self._rms_reward.var)
+
+    def _normalize_observation(self, observation: Tensor):
+        return ((observation - self._rms_observation.mean)/np.sqrt(self._rms_observation.var)).detach()
