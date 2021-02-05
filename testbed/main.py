@@ -6,8 +6,8 @@ from testbed.ppo.ppo import PPOAgent
 
 vis = visdom.Visdom()
 
-# env_name = "BipedalWalker-v3"
-env_name = 'Pendulum-v0'
+env_name = "BipedalWalker-v3"
+# env_name = 'Pendulum-v0'
 # env_name = "MountainCarContinuous-v0"
 env = gym.make(env_name)
 
@@ -17,8 +17,8 @@ print(f"dim_action: {len(env.action_space.high)}")
 
 agent = PPOAgent(
     reward_discount=0.95,
-    n_trajectory=10,
-    max_time_steps=100,
+    n_trajectory=20,
+    max_time_steps=50,
     dim_observation=len(env.observation_space.high),
     dim_action=len(env.action_space.high),
     lr_value=0.001,

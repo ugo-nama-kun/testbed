@@ -44,20 +44,20 @@ class PPOAgent:
         # DNN params
         self._value_network = ValueNetwork(
             dim_observation=dim_observation,
-            hidden_size1=64,
-            hidden_size2=32
+            hidden_size1=200,
+            hidden_size2=200
         )
 
         self._policy_network = PolicyNetwork(
             dim_observation=dim_observation,
-            hidden_size1=64,
-            hidden_size2=32,
+            hidden_size1=200,
+            hidden_size2=200,
             dim_action=dim_action
         )
         self._policy_old = PolicyNetwork(
             dim_observation=dim_observation,
-            hidden_size1=64,
-            hidden_size2=32,
+            hidden_size1=200,
+            hidden_size2=200,
             dim_action=dim_action
         )
         # copy policy into the old-policy network
@@ -111,6 +111,7 @@ class PPOAgent:
         # Normalizer update
         self._rms_observation.update(np.array(observation))
         if reward:
+            reward = np.clip(reward, a_min=-10, a_max=10)
             self._rms_reward.update(np.array([reward]))
 
         # Taking Action
